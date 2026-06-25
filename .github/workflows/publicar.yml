@@ -1,0 +1,69 @@
+name: Publicar no Cafezinho
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Titulo do post"
+        required: true
+        type: string
+      content:
+        description: "Conteudo do post"
+        required: true
+        type: string
+      excerpt:
+        description: "Resumo opcional"
+        required: false
+        type: string
+      category_ids:
+        description: "IDs de categorias separados por virgula"
+        required: false
+        type: string
+      tags:
+        description: "Tags separadas por virgula"
+        required: false
+        type: string
+      status:
+        description: "Status do post"
+        required: true
+        default: "pending"
+        type: choice
+        options:
+          - pending
+          - draft
+          - publish
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Publicar post pendente
+        env:
+          CAFEZINHO_WP_URL: ${{ secrets.CAFEZINHO_WP_URL }}
+          CAFEZINHO_WP_USER: ${{ secrets.CAFEZINHO_WP_USER }}
+          CAFEZINHO_WP_APP_PASSWORD: ${{ secrets.CAFEZINHO_WP_APP_PASSWORD }}
+          CAFEZINHO_WP_AUTHOR_ID: ${{ secrets.CAFEZINHO_WP_AUTHOR_ID }}
+        run: |
+          cat > conteudo.txt <<'EOF'
+          ${{ inputs.content }}
+          EOF
+
+          python publicar.py \
+            --title "${{ inputs.title }}" \
+            --content-file conteudo.txt \
+            --excerpt "${{ inputs.excerpt }}" \
+            --category-ids "${{ inputs.category_ids }}" \
+            --tags "${{ inputs.tags }}" \
+            --status "${{ inputs.status }}"
