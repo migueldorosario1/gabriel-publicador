@@ -6,41 +6,58 @@ import requests
 from .utils import lista_ids, wp_auth, wp_base_url
 
 
-def criar_ou_obter_tag(nome: str) -> int:
+TIMEOUT_CURTO = 20
+TIMEOUT_POST = 120
+
+
+def criar_ou_obter_tag(nome: str) -> int | None:
     nome = nome.strip()
     if not nome:
-        raise ValueError("Nome de tag vazio")
+        return None
 
     base = wp_base_url()
     auth = wp_auth()
 
-    busca = requests.get(
-        f"{base}/wp-json/wp/v2/tags",
-        params={"search": nome, "per_page": 20},
-        auth=auth,
-        timeout=30,
-    )
-    busca.raise_for_status()
+    try:
+        busca = requests.get(
+            f"{base}/wp-json/wp/v2/tags",
+            params={"search": nome, "per_page": 20},
+            auth=auth,
+            timeout=TIMEOUT_CURTO,
+        )
+        busca.raise_for_status()
 
-    for tag in busca.json():
-        if tag.get("name", "").strip().lower() == nome.lower():
-            return int(tag["id"])
+        for tag in busca.json():
+            if tag.get("name", "").strip().lower() == nome.lower():
+                return int(tag["id"])
 
-    cria = requests.post(
-        f"{base}/wp-json/wp/v2/tags",
-        json={"name": nome},
-        auth=auth,
-        timeout=30,
-    )
-    cria.raise_for_status()
-    return int(cria.json()["id"])
+        cria = requests.post(
+            f"{base}/wp-json/wp/v2/tags",
+            json={"name": nome},
+            auth=auth,
+            timeout=TIMEOUT_CURTO,
+        )
+        cria.raise_for_status()
+        return int(cria.json()["id"])
+
+    except requests.RequestException as erro:
+        print(f"Aviso: nao foi possivel resolver/criar a tag '{nome}'. Motivo: {erro}")
+        return None
 
 
 def resolver_tags(tags_texto: str | None) -> list[int]:
     if not tags_texto:
         return []
+
     nomes = [t.strip() for t in tags_texto.split(",") if t.strip()]
-    return [criar_ou_obter_tag(nome) for nome in nomes]
+    ids: list[int] = []
+
+    for nome in nomes:
+        tag_id = criar_ou_obter_tag(nome)
+        if tag_id:
+            ids.append(tag_id)
+
+    return ids
 
 
 def criar_post(
@@ -86,7 +103,7 @@ def criar_post(
         f"{wp_base_url()}/wp-json/wp/v2/posts",
         json=payload,
         auth=wp_auth(),
-        timeout=60,
+        timeout=TIMEOUT_POST,
     )
 
     if resposta.status_code >= 400:
